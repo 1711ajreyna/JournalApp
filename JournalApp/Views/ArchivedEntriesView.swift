@@ -1,20 +1,21 @@
 //
 //  ArchivedEntriesView.swift
-//  Class04
+//  JournalApp
 //
 //  Created by Andrew Reyna.
+//
+//  Displays archived entries and allows users
+//  to restore, search, edit, or delete them.
 //
 
 import SwiftUI
 import SwiftData
 
-// Displays only entries whose isArchived value is true.
 struct ArchivedEntriesView: View {
 
     @Environment(\.modelContext)
     private var modelContext
 
-    // Fetch all entries newest first.
     @Query(
         sort: \JournalEntry.date,
         order: .reverse
@@ -23,93 +24,126 @@ struct ArchivedEntriesView: View {
 
     @State private var searchText = ""
 
-    // Keep only archived entries that also match the search.
-    private var archivedEntries: [JournalEntry] {
+    private let viewModel =
+        JournalViewModel()
+
+    // Keeps only archived entries matching the search.
+    private var archivedEntries:
+        [JournalEntry] {
+
         entries.filter { entry in
             let matchesSearch =
                 searchText.isEmpty ||
-                entry.title.localizedCaseInsensitiveContains(
-                    searchText
-                ) ||
-                entry.body.localizedCaseInsensitiveContains(
-                    searchText
-                )
+                entry.title
+                    .localizedCaseInsensitiveContains(
+                        searchText
+                    ) ||
+                entry.body
+                    .localizedCaseInsensitiveContains(
+                        searchText
+                    ) ||
+                entry.tags
+                    .localizedCaseInsensitiveContains(
+                        searchText
+                    )
 
-            return entry.isArchived && matchesSearch
+            return entry.isArchived &&
+                   matchesSearch
         }
     }
 
     var body: some View {
         Group {
             if archivedEntries.isEmpty {
-                ContentUnavailableView {
-                    Label(
-                        searchText.isEmpty
-                            ? "No Archived Entries"
-                            : "No Results",
-                        systemImage: searchText.isEmpty
-                            ? "archivebox"
-                            : "magnifyingglass"
-                    )
-                } description: {
-                    Text(
-                        searchText.isEmpty
-                            ? "Entries you archive will appear here."
-                            : "Try searching with different text."
-                    )
-                }
+                emptyState
             } else {
-                List {
-                    ForEach(archivedEntries) { entry in
-                        NavigationLink {
-                            EntryDetailView(entry: entry)
-                        } label: {
-                            EntryRowView(entry: entry)
-                        }
-                        .swipeActions(
-                            edge: .leading,
-                            allowsFullSwipe: true
-                        ) {
-                            Button {
-                                restore(entry)
-                            } label: {
-                                Label(
-                                    "Restore",
-                                    systemImage:
-                                        "arrow.uturn.backward"
-                                )
-                            }
-                            .tint(.green)
-                        }
-                        .swipeActions(
-                            edge: .trailing
-                        ) {
-                            Button(role: .destructive) {
-                                delete(entry)
-                            } label: {
-                                Label(
-                                    "Delete",
-                                    systemImage: "trash"
-                                )
-                            }
-                        }
-                    }
-                }
+                archivedList
             }
         }
         .navigationTitle("Archived")
         .searchable(
             text: $searchText,
-            prompt: "Search archived entries"
+            prompt:
+                "Search archived entries"
         )
     }
 
-    private func restore(_ entry: JournalEntry) {
-        entry.isArchived = false
+    // MARK: - Archived List
+
+    private var archivedList: some View {
+        List {
+            ForEach(archivedEntries) { entry in
+                NavigationLink {
+                    EntryDetailView(
+                        entry: entry
+                    )
+                } label: {
+                    EntryRowView(
+                        entry: entry
+                    )
+                }
+                .swipeActions(
+                    edge: .leading,
+                    allowsFullSwipe: true
+                ) {
+                    Button {
+                        viewModel.restore(entry)
+                    } label: {
+                        Label(
+                            "Restore",
+                            systemImage:
+                                "arrow.uturn.backward"
+                        )
+                    }
+                    .tint(.green)
+                }
+                .swipeActions(
+                    edge: .trailing
+                ) {
+                    Button(
+                        role: .destructive
+                    ) {
+                        viewModel.delete(
+                            entry,
+                            context: modelContext
+                        )
+                    } label: {
+                        Label(
+                            "Delete",
+                            systemImage: "trash"
+                        )
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
     }
 
-    private func delete(_ entry: JournalEntry) {
-        modelContext.delete(entry)
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label(
+                searchText.isEmpty
+                    ? "No Archived Entries"
+                    : "No Results",
+                systemImage: searchText.isEmpty
+                    ? "archivebox"
+                    : "magnifyingglass"
+            )
+        } description: {
+            Text(
+                searchText.isEmpty
+                    ? "Entries you archive will appear here."
+                    : "Try searching with different text."
+            )
+        } actions: {
+            if !searchText.isEmpty {
+                Button("Clear Search") {
+                    searchText = ""
+                }
+            }
+        }
     }
 }
 

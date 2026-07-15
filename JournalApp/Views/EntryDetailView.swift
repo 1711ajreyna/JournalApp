@@ -1,14 +1,16 @@
 //
 //  EntryDetailView.swift
-//  Class04
+//  JournalApp
 //
 //  Created by Andrew Reyna.
+//
+//  Allows the user to view, edit, archive,
+//  favorite, and delete an existing entry.
 //
 
 import SwiftUI
 import SwiftData
 
-// Allows the user to view and edit one existing entry.
 struct EntryDetailView: View {
 
     @Environment(\.modelContext)
@@ -17,13 +19,11 @@ struct EntryDetailView: View {
     @Environment(\.dismiss)
     private var dismiss
 
-    // @Bindable creates bindings directly to properties
-    // on the SwiftData model.
-    //
-    // Changes made in these fields are tracked by SwiftData.
+    // Creates bindings directly to the SwiftData model.
     @Bindable var entry: JournalEntry
 
-    @State private var showDeleteConfirmation = false
+    @State private var showDeleteConfirmation =
+        false
 
     private let categories = [
         "Personal",
@@ -46,8 +46,19 @@ struct EntryDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    TextEditor(text: $entry.body)
-                        .frame(minHeight: 220)
+                    TextEditor(
+                        text: $entry.body
+                    )
+                    .frame(minHeight: 220)
+                    .padding(6)
+                    .background(
+                        Color.secondary.opacity(0.08)
+                    )
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: 10
+                        )
+                    )
                 }
             }
 
@@ -62,11 +73,21 @@ struct EntryDetailView: View {
                     "Category",
                     selection: $entry.category
                 ) {
-                    ForEach(categories, id: \.self) { category in
+                    ForEach(
+                        categories,
+                        id: \.self
+                    ) { category in
                         Text(category)
                             .tag(category)
                     }
                 }
+
+                TextField(
+                    "Tags, separated by commas",
+                    text: $entry.tags
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
 
                 Toggle(
                     "Favorite",
@@ -92,7 +113,8 @@ struct EntryDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             "Delete this journal entry?",
-            isPresented: $showDeleteConfirmation,
+            isPresented:
+                $showDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button(
@@ -102,13 +124,18 @@ struct EntryDetailView: View {
                 deleteEntry()
             }
 
-            Button("Cancel", role: .cancel) {}
+            Button(
+                "Cancel",
+                role: .cancel
+            ) {}
         } message: {
-            Text("This action cannot be undone.")
+            Text(
+                "This action cannot be undone."
+            )
         }
     }
 
-    // Deletes the model from SwiftData.
+    // Deletes the entry and returns to the list.
     private func deleteEntry() {
         modelContext.delete(entry)
         dismiss()
@@ -121,7 +148,8 @@ struct EntryDetailView: View {
             entry: JournalEntry(
                 title: "Sample Entry",
                 body: "This is a sample journal entry.",
-                category: "Personal"
+                category: "Personal",
+                tags: "sample, journal"
             )
         )
     }

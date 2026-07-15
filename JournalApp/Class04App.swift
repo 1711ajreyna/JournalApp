@@ -1,31 +1,85 @@
 //
 //  Class04App.swift
-//  Class04
+//  JournalApp
 //
 //  Created by Andrew Reyna.
+//
+//  Configures the app's tabs, theme,
+//  and SwiftData model container.
 //
 
 import SwiftUI
 import SwiftData
 
-// @main marks this structure as the starting point of the app.
 @main
 struct Class04App: App {
 
+    // Reads the selected theme from Settings.
+    @AppStorage("preferredTheme")
+    private var preferredTheme = "System"
+
     var body: some Scene {
         WindowGroup {
+            TabView {
 
-            // NavigationStack allows navigation from the list
-            // to the add, edit, and archived screens.
-            NavigationStack {
-                EntryListView()
+                // Main journal tab.
+                NavigationStack {
+                    EntryListView()
+                }
+                .tabItem {
+                    Label(
+                        "Journal",
+                        systemImage: "book.closed"
+                    )
+                }
+
+                // Archived entries tab.
+                NavigationStack {
+                    ArchivedEntriesView()
+                }
+                .tabItem {
+                    Label(
+                        "Archived",
+                        systemImage: "archivebox"
+                    )
+                }
+
+                // Profile and settings tab.
+                NavigationStack {
+                    SettingsView()
+                }
+                .tabItem {
+                    Label(
+                        "Settings",
+                        systemImage: "gearshape"
+                    )
+                }
             }
+            .preferredColorScheme(
+                selectedColorScheme
+            )
         }
 
         // Creates the SwiftData storage container.
-        //
-        // The container saves and loads JournalEntry objects
-        // and provides modelContext to the view hierarchy.
-        .modelContainer(for: JournalEntry.self)
+        .modelContainer(
+            for: JournalEntry.self
+        )
+    }
+
+    // Converts the saved theme name into
+    // a SwiftUI color scheme.
+    private var selectedColorScheme:
+        ColorScheme? {
+
+        switch preferredTheme {
+        case "Light":
+            return .light
+
+        case "Dark":
+            return .dark
+
+        default:
+            return nil
+        }
     }
 }

@@ -1,33 +1,50 @@
 //
 //  EntryRowView.swift
-//  Class04
+//  JournalApp
 //
 //  Created by Andrew Reyna.
+//
+//  Displays one journal entry inside a list row.
 //
 
 import SwiftUI
 
-// Displays one journal entry inside a List.
 struct EntryRowView: View {
 
-    // The entry displayed by this row.
     let entry: JournalEntry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(
+            alignment: .top,
+            spacing: 14
+        ) {
 
             // Category icon.
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(categoryColor.opacity(0.15))
-                    .frame(width: 46, height: 46)
+                RoundedRectangle(
+                    cornerRadius: 12
+                )
+                .fill(
+                    categoryColor.opacity(0.15)
+                )
+                .frame(
+                    width: 46,
+                    height: 46
+                )
 
-                Image(systemName: categoryIcon)
-                    .foregroundStyle(categoryColor)
-                    .font(.title3)
+                Image(
+                    systemName: categoryIcon
+                )
+                .foregroundStyle(
+                    categoryColor
+                )
+                .font(.title3)
             }
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(
+                alignment: .leading,
+                spacing: 7
+            ) {
 
                 HStack {
                     Text(entry.title)
@@ -36,36 +53,28 @@ struct EntryRowView: View {
 
                     Spacer()
 
-                    // Show a star when the entry is a favorite.
                     if entry.isFavorite {
-                        Image(systemName: "star.fill")
-                            .foregroundStyle(.yellow)
-                            .accessibilityLabel("Favorite")
+                        Image(
+                            systemName: "star.fill"
+                        )
+                        .foregroundStyle(.yellow)
+                        .accessibilityLabel(
+                            "Favorite"
+                        )
                     }
                 }
 
-                // Show a short preview of the journal body.
+                // Short preview of the journal body.
                 Text(entry.body)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
 
                 HStack {
-                    // Category badge.
-                    Text(entry.category)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(categoryColor)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(
-                            categoryColor.opacity(0.12)
-                        )
-                        .clipShape(Capsule())
+                    categoryBadge
 
                     Spacer()
 
-                    // Formatted journal date.
                     Text(
                         entry.date,
                         format: .dateTime
@@ -76,12 +85,44 @@ struct EntryRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
+
+                // Show tags when the entry has any.
+                if !entry.tags
+                    .trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    )
+                    .isEmpty {
+
+                    Label(
+                        entry.tags,
+                        systemImage: "tag"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
             }
         }
         .padding(.vertical, 5)
     }
 
-    // Returns an icon based on the category.
+    // MARK: - Category Badge
+
+    private var categoryBadge: some View {
+        Text(entry.category)
+            .font(.caption)
+            .fontWeight(.medium)
+            .foregroundStyle(categoryColor)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(
+                categoryColor.opacity(0.12)
+            )
+            .clipShape(Capsule())
+    }
+
+    // MARK: - Category Styling
+
     private var categoryIcon: String {
         switch entry.category {
         case "Work":
@@ -95,7 +136,6 @@ struct EntryRowView: View {
         }
     }
 
-    // Returns a visual color based on the category.
     private var categoryColor: Color {
         switch entry.category {
         case "Work":
@@ -108,4 +148,17 @@ struct EntryRowView: View {
             return .purple
         }
     }
+}
+
+#Preview {
+    EntryRowView(
+        entry: JournalEntry(
+            title: "Project Notes",
+            body: "Finished the search and category features.",
+            category: "School",
+            tags: "SwiftUI, homework",
+            isFavorite: true
+        )
+    )
+    .padding()
 }

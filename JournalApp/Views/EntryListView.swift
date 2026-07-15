@@ -1,128 +1,107 @@
 //
 //  EntryListView.swift
-//  Class04
+//  JournalApp
 //
 //  Created by Andrew Reyna.
+//
+//  Displays, searches, sorts, filters, archives,
+//  favorites, and deletes journal entries.
 //
 
 import SwiftUI
 import SwiftData
 
-// Represents the two available sort directions.
-enum EntrySortOrder: String, CaseIterable, Identifiable {
-    case newest = "Newest"
-    case oldest = "Oldest"
-
-    var id: String {
-        rawValue
-    }
-}
-
-// The main home screen of the journal app.
 struct EntryListView: View {
 
-    // Gives this view access to SwiftData delete operations.
+    // Provides access to SwiftData operations.
     @Environment(\.modelContext)
     private var modelContext
 
-    // Loads journal entries from SwiftData.
-    //
-    // The base query is sorted newest first, satisfying
-    // the assignment's required default sorting.
+    // Fetches all entries from SwiftData.
     @Query(
         sort: \JournalEntry.date,
         order: .reverse
     )
     private var entries: [JournalEntry]
 
+    // Reads the saved entry-count preference.
+    @AppStorage("showEntryCounts")
+    private var showEntryCounts = true
+
+    // Reads the user's profile name.
+    @AppStorage("displayName")
+    private var displayName = ""
+
     // MARK: - View State
 
-    @State private var searchText = ""
-    @State private var categoryFilter = "All"
-    @State private var sortOrder: EntrySortOrder = .newest
+    @State private var viewModel =
+        JournalViewModel()
+
     @State private var showingAddEntry = false
 
-    private let categoryOptions = [
-        "All",
-        "Personal",
-        "Work",
-        "School"
-    ]
-
-    // Applies archive, category, search, and sort rules.
+    // Entries after search, category, archive,
+    // and sorting rules have been applied.
     private var filteredEntries: [JournalEntry] {
-        let visibleEntries = entries.filter { entry in
-
-            // Archived entries are excluded from the home list.
-            let matchesArchive = !entry.isArchived
-
-            // All displays every category.
-            let matchesCategory =
-                categoryFilter == "All" ||
-                entry.category == categoryFilter
-
-            // Search both the title and body.
-            let matchesSearch =
-                searchText.isEmpty ||
-                entry.title.localizedCaseInsensitiveContains(
-                    searchText
-                ) ||
-                entry.body.localizedCaseInsensitiveContains(
-                    searchText
-                )
-
-            return matchesArchive &&
-                   matchesCategory &&
-                   matchesSearch
-        }
-
-        // @Query already supplies newest-first data.
-        //
-        // Reverse the array when the user selects oldest.
-        switch sortOrder {
-        case .newest:
-            return visibleEntries
-
-        case .oldest:
-            return visibleEntries.reversed()
-        }
+        viewModel.filteredEntries(
+            from: entries
+        )
     }
 
     var body: some View {
         Group {
-            if filteredEntries.isEmpty {
-                emptyState
+            if entries.isEmpty {
+                emptyJournalState
             } else {
-                entryList
+                journalContent
             }
         }
-        .navigationTitle("My Journal")
+        .navigationTitle(navigationTitle)
         .searchable(
-            text: $searchText,
-            prompt: "Search title or entry"
+            text: searchBinding,
+            prompt: "Search title, entry, or tags"
         )
         .toolbar {
-            leadingToolbar
-            trailingToolbar
+            ToolbarItem(
+                placement: .topBarTrailing
+            ) {
+                Button {
+                    showingAddEntry = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Add Entry")
+            }
         }
-        .sheet(isPresented: $showingAddEntry) {
+        .sheet(
+            isPresented: $showingAddEntry
+        ) {
             NavigationStack {
                 AddEntryView()
             }
         }
     }
 
-    // MARK: - Main List
+    // MARK: - Main Content
 
-    private var entryList: some View {
+    private var journalContent: some View {
         List {
 
+            // Visible category tabs satisfy the assignment's
+            // category-filtering requirement.
             Section {
+                categoryTabs
+            }
+
+            // Sorting is performed with SwiftData data
+            // and ViewModel sorting controls.
+            Section("Sort Entries") {
                 Picker(
                     "Sort Order",
-                    selection: $sortOrder
+                    selection: sortBinding
                 ) {
-                    ForEach(EntrySortOrder.allCases) { option in
+                    ForEach(
+                        EntrySortOrder.allCases
+                    ) { option in
                         Text(option.rawValue)
                             .tag(option)
                     }
@@ -131,61 +110,44 @@ struct EntryListView: View {
             }
 
             Section {
-                ForEach(filteredEntries) { entry in
-                    NavigationLink {
-                        EntryDetailView(entry: entry)
-                    } label: {
-                        EntryRowView(entry: entry)
-                    }
-
-                    // Leading swipe action for favorite status.
-                    .swipeActions(
-                        edge: .leading,
-                        allowsFullSwipe: true
-                    ) {
-                        Button {
-                            toggleFavorite(entry)
+                if filteredEntries.isEmpty {
+                    filteredEmptyState
+                } else {
+                    ForEach(filteredEntries) { entry in
+                        NavigationLink {
+                            EntryDetailView(
+                                entry: entry
+                            )
                         } label: {
-                            Label(
-                                entry.isFavorite
-                                    ? "Unfavorite"
-                                    : "Favorite",
-                                systemImage: entry.isFavorite
-                                    ? "star.slash"
-                                    : "star"
+                            EntryRowView(
+                                entry: entry
                             )
                         }
-                        .tint(.yellow)
-                    }
-
-                    // Trailing swipe actions for archive and delete.
-                    .swipeActions(
-                        edge: .trailing,
-                        allowsFullSwipe: false
-                    ) {
-                        Button(role: .destructive) {
-                            delete(entry)
-                        } label: {
-                            Label(
-                                "Delete",
-                                systemImage: "trash"
+                        .swipeActions(
+                            edge: .leading,
+                            allowsFullSwipe: true
+                        ) {
+                            favoriteButton(
+                                for: entry
                             )
                         }
+                        .swipeActions(
+                            edge: .trailing,
+                            allowsFullSwipe: false
+                        ) {
+                            deleteButton(
+                                for: entry
+                            )
 
-                        Button {
-                            archive(entry)
-                        } label: {
-                            Label(
-                                "Archive",
-                                systemImage: "archivebox"
+                            archiveButton(
+                                for: entry
                             )
                         }
-                        .tint(.orange)
                     }
+                    .onDelete(
+                        perform: deleteEntries
+                    )
                 }
-
-                // Standard swipe-to-delete support.
-                .onDelete(perform: deleteEntries)
             } header: {
                 Text(sectionTitle)
             }
@@ -193,9 +155,77 @@ struct EntryListView: View {
         .listStyle(.insetGrouped)
     }
 
-    // MARK: - Empty State
+    // MARK: - Category Tabs
 
-    private var emptyState: some View {
+    private var categoryTabs: some View {
+        ScrollView(
+            .horizontal,
+            showsIndicators: false
+        ) {
+            HStack(spacing: 10) {
+                ForEach(
+                    viewModel.categories,
+                    id: \.self
+                ) { category in
+                    Button {
+                        viewModel.selectedCategory =
+                            category
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text(category)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            if showEntryCounts {
+                                Text(
+                                    "\(entryCount(for: category))"
+                                )
+                                .font(.caption2)
+                            }
+                        }
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 8)
+                        .foregroundStyle(
+                            isSelected(category)
+                                ? Color.white
+                                : Color.primary
+                        )
+                        .background(
+                            isSelected(category)
+                                ? Color.accentColor
+                                : Color.secondary
+                                    .opacity(0.14)
+                        )
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    // MARK: - Empty States
+
+    private var emptyJournalState: some View {
+        ContentUnavailableView {
+            Label(
+                "No Journal Entries",
+                systemImage: "book.closed"
+            )
+        } description: {
+            Text(
+                "Tap the plus button to write your first entry."
+            )
+        } actions: {
+            Button("Create Entry") {
+                showingAddEntry = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var filteredEmptyState: some View {
         ContentUnavailableView {
             Label(
                 emptyStateTitle,
@@ -204,138 +234,186 @@ struct EntryListView: View {
         } description: {
             Text(emptyStateDescription)
         } actions: {
-            if searchText.isEmpty &&
-                categoryFilter == "All" {
-
-                Button("Create Entry") {
-                    showingAddEntry = true
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button("Clear Filters") {
-                    searchText = ""
-                    categoryFilter = "All"
-                }
+            Button("Clear Filters") {
+                viewModel.searchText = ""
+                viewModel.selectedCategory = "All"
             }
+        }
+        .frame(maxWidth: .infinity)
+        .listRowBackground(
+            Color.clear
+        )
+    }
+
+    // MARK: - Swipe Action Buttons
+
+    private func favoriteButton(
+        for entry: JournalEntry
+    ) -> some View {
+
+        Button {
+            viewModel.toggleFavorite(entry)
+        } label: {
+            Label(
+                entry.isFavorite
+                    ? "Unfavorite"
+                    : "Favorite",
+                systemImage: entry.isFavorite
+                    ? "star.slash"
+                    : "star"
+            )
+        }
+        .tint(.yellow)
+    }
+
+    private func archiveButton(
+        for entry: JournalEntry
+    ) -> some View {
+
+        Button {
+            viewModel.archive(entry)
+        } label: {
+            Label(
+                "Archive",
+                systemImage: "archivebox"
+            )
+        }
+        .tint(.orange)
+    }
+
+    private func deleteButton(
+        for entry: JournalEntry
+    ) -> some View {
+
+        Button(role: .destructive) {
+            viewModel.delete(
+                entry,
+                context: modelContext
+            )
+        } label: {
+            Label(
+                "Delete",
+                systemImage: "trash"
+            )
         }
     }
 
-    // MARK: - Toolbars
+    // MARK: - Bindings
 
-    @ToolbarContentBuilder
-    private var leadingToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Menu {
-                Picker(
-                    "Filter Category",
-                    selection: $categoryFilter
-                ) {
-                    ForEach(
-                        categoryOptions,
-                        id: \.self
-                    ) { category in
-                        Text(category)
-                            .tag(category)
-                    }
-                }
-            } label: {
-                Label(
-                    categoryFilter == "All"
-                        ? "Filter"
-                        : categoryFilter,
-                    systemImage:
-                        "line.3.horizontal.decrease.circle"
-                )
+    // Creates bindings to observable ViewModel properties.
+    private var searchBinding: Binding<String> {
+        Binding(
+            get: {
+                viewModel.searchText
+            },
+            set: {
+                viewModel.searchText = $0
             }
-        }
+        )
     }
 
-    @ToolbarContentBuilder
-    private var trailingToolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarTrailing) {
+    private var sortBinding:
+        Binding<EntrySortOrder> {
 
-            NavigationLink {
-                ArchivedEntriesView()
-            } label: {
-                Image(systemName: "archivebox")
+        Binding(
+            get: {
+                viewModel.sortOrder
+            },
+            set: {
+                viewModel.sortOrder = $0
             }
-            .accessibilityLabel("Archived Entries")
-
-            Button {
-                showingAddEntry = true
-            } label: {
-                Image(systemName: "plus")
-            }
-            .accessibilityLabel("Add Entry")
-        }
+        )
     }
 
-    // MARK: - Display Text
+    // MARK: - Display Helpers
+
+    private var navigationTitle: String {
+        let cleanedName =
+            displayName.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        if cleanedName.isEmpty {
+            return "My Journal"
+        }
+
+        return "\(cleanedName)'s Journal"
+    }
 
     private var sectionTitle: String {
-        if categoryFilter == "All" {
-            return "\(filteredEntries.count) Entries"
-        }
+        let name =
+            viewModel.selectedCategory == "All"
+                ? "Entries"
+                : viewModel.selectedCategory
 
-        return "\(categoryFilter) Entries"
+        return "\(filteredEntries.count) \(name)"
     }
 
     private var emptyStateTitle: String {
-        if !searchText.isEmpty {
+        if !viewModel.searchText.isEmpty {
             return "No Search Results"
         }
 
-        if categoryFilter != "All" {
-            return "No \(categoryFilter) Entries"
-        }
-
-        return "No Journal Entries"
+        return "No \(viewModel.selectedCategory) Entries"
     }
 
     private var emptyStateIcon: String {
-        if !searchText.isEmpty {
+        if !viewModel.searchText.isEmpty {
             return "magnifyingglass"
+        }
+
+        if viewModel.selectedCategory ==
+            "Favorites" {
+            return "star"
         }
 
         return "book.closed"
     }
 
     private var emptyStateDescription: String {
-        if !searchText.isEmpty {
+        if !viewModel.searchText.isEmpty {
             return "No entries match your search."
         }
 
-        if categoryFilter != "All" {
-            return "Try another category or create a new entry."
-        }
-
-        return "Tap the plus button to write your first entry."
+        return "Try another category or create a new entry."
     }
 
-    // MARK: - SwiftData Operations
+    private func isSelected(
+        _ category: String
+    ) -> Bool {
 
-    private func toggleFavorite(_ entry: JournalEntry) {
-        entry.isFavorite.toggle()
+        viewModel.selectedCategory ==
+            category
     }
 
-    private func archive(_ entry: JournalEntry) {
-        entry.isArchived = true
+    private func entryCount(
+        for category: String
+    ) -> Int {
+
+        viewModel.entryCount(
+            for: category,
+            from: entries
+        )
     }
 
-    private func delete(_ entry: JournalEntry) {
-        modelContext.delete(entry)
-    }
+    // MARK: - Deletion
 
-    // Handles deletion when the user uses the standard
-    // List swipe-to-delete gesture.
-    private func deleteEntries(at offsets: IndexSet) {
+    private func deleteEntries(
+        at offsets: IndexSet
+    ) {
         for offset in offsets {
-            guard filteredEntries.indices.contains(offset) else {
+            guard filteredEntries.indices
+                .contains(offset) else {
                 continue
             }
 
-            let entry = filteredEntries[offset]
-            modelContext.delete(entry)
+            let entry =
+                filteredEntries[offset]
+
+            viewModel.delete(
+                entry,
+                context: modelContext
+            )
         }
     }
 }

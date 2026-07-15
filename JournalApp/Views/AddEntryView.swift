@@ -1,32 +1,40 @@
 //
 //  AddEntryView.swift
-//  Class04
+//  JournalApp
 //
 //  Created by Andrew Reyna.
+//
+//  Displays a form for creating a new journal entry.
 //
 
 import SwiftUI
 import SwiftData
 
-// Displays a form used to create a new journal entry.
 struct AddEntryView: View {
 
-    // modelContext provides insert, delete, and save access
-    // to the SwiftData container.
+    // Provides access to SwiftData.
     @Environment(\.modelContext)
     private var modelContext
 
-    // Used to close the sheet after saving or cancelling.
+    // Closes the sheet after saving or cancelling.
     @Environment(\.dismiss)
     private var dismiss
+
+    // Reads the user's saved default category.
+    @AppStorage("defaultCategory")
+    private var defaultCategory = "Personal"
 
     // MARK: - Form State
 
     @State private var title = ""
     @State private var bodyText = ""
     @State private var date = Date.now
-    @State private var category = "Personal"
+    @State private var category = ""
+    @State private var tags = ""
     @State private var isFavorite = false
+
+    // Handles validation and data insertion.
+    private let viewModel = JournalViewModel()
 
     private let categories = [
         "Personal",
@@ -36,6 +44,8 @@ struct AddEntryView: View {
 
     var body: some View {
         Form {
+
+            // MARK: - Main Entry Section
 
             Section("Journal Entry") {
                 TextField(
@@ -50,8 +60,19 @@ struct AddEntryView: View {
 
                     TextEditor(text: $bodyText)
                         .frame(minHeight: 180)
+                        .padding(6)
+                        .background(
+                            Color.secondary.opacity(0.08)
+                        )
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: 10
+                            )
+                        )
                 }
             }
+
+            // MARK: - Entry Details
 
             Section("Details") {
                 DatePicker(
@@ -64,14 +85,26 @@ struct AddEntryView: View {
                     "Category",
                     selection: $category
                 ) {
-                    ForEach(categories, id: \.self) { category in
+                    ForEach(
+                        categories,
+                        id: \.self
+                    ) { category in
                         Label(
                             category,
-                            systemImage: icon(for: category)
+                            systemImage: icon(
+                                for: category
+                            )
                         )
                         .tag(category)
                     }
                 }
+
+                TextField(
+                    "Tags, separated by commas",
+                    text: $tags
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
 
                 Toggle(
                     "Mark as Favorite",
@@ -82,14 +115,17 @@ struct AddEntryView: View {
         .navigationTitle("New Entry")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(
+                placement: .topBarLeading
+            ) {
                 Button("Cancel") {
                     dismiss()
                 }
             }
 
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(
+                placement: .topBarTrailing
+            ) {
                 Button("Save") {
                     saveEntry()
                 }
@@ -97,47 +133,44 @@ struct AddEntryView: View {
                 .disabled(isSaveDisabled)
             }
         }
-    }
-
-    // Prevents the user from saving an empty entry.
-    private var isSaveDisabled: Bool {
-        trimmedTitle.isEmpty || trimmedBody.isEmpty
-    }
-
-    private var trimmedTitle: String {
-        title.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-    }
-
-    private var trimmedBody: String {
-        bodyText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-    }
-
-    // Creates and inserts a new SwiftData model.
-    private func saveEntry() {
-        guard !isSaveDisabled else {
-            return
+        .onAppear {
+            // Use the category saved in Settings.
+            if category.isEmpty {
+                category = defaultCategory
+            }
         }
+    }
 
-        let newEntry = JournalEntry(
-            title: trimmedTitle,
-            body: trimmedBody,
+    // Prevents saving an empty title or body.
+    private var isSaveDisabled: Bool {
+        !viewModel.isValidEntry(
+            title: title,
+            body: bodyText
+        )
+    }
+
+    // Creates the entry through the ViewModel.
+    private func saveEntry() {
+        let didSave = viewModel.addEntry(
+            title: title,
+            body: bodyText,
             date: date,
             category: category,
-            isFavorite: isFavorite
+            tags: tags,
+            isFavorite: isFavorite,
+            context: modelContext
         )
 
-        // Inserting the object adds it to SwiftData.
-        modelContext.insert(newEntry)
-
-        // SwiftData normally autosaves context changes.
-        dismiss()
+        if didSave {
+            dismiss()
+        }
     }
 
-    private func icon(for category: String) -> String {
+    // Returns an icon for each category.
+    private func icon(
+        for category: String
+    ) -> String {
+
         switch category {
         case "Work":
             return "briefcase"
